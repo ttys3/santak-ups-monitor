@@ -1,14 +1,17 @@
 package main
 
 import (
+	"io"
+	"os"
+	"os/signal"
+	"runtime"
+	"time"
+	"unsafe"
+
 	"bitbucket.org/8ox86/santak-monitor/pkg/santak"
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/cli"
 	"github.com/apex/log/handlers/multi"
-	"os"
-	"time"
-	"unsafe"
-
 	"github.com/tarm/serial"
 )
 
@@ -17,13 +20,15 @@ func init() {
 }
 
 func main() {
-	c := &serial.Config{Name: "COM4", Baud: 2400, ReadTimeout: time.Second * 10 }
-	s, err := serial.OpenPort(c)
-	if err != nil {
-		log.Fatal(err.Error())
+	var ttyDev = "/dev/ttyUSB0"
+	if runtime.GOOS == "windows" {
+		ttyDev = "COM4"
 	}
+	c := &serial.Config{Name: ttyDev, Baud: 2400, ReadTimeout: time.Second * 3}
 
-	n, err := s.Write([]byte("Q1\r"))
+	log.Infof("try open port: %s\n", ttyDev)
+
+	s, err := serial.OpenPort(c)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
@@ -31,37 +36,99 @@ func main() {
 	result := make([]byte, 0)
 	buf := make([]byte, 128)
 
+	// After setting everything up!
+	// Wait for a SIGINT (perhaps triggered by user with CTRL-C)
+	// Run cleanup when signal is received
+	signalChan := make(chan os.Signal, 1)
+	cleanupDone := make(chan struct{})
+	signal.Notify(signalChan, os.Interrupt)
+	go func() {
+		<-signalChan
+		log.Info("Received an interrupt, stopping services...")
+		s.Flush()
+		s.Close()
+		close(cleanupDone)
+	}()
+
+	// log.Info("try send test command ...")
+	// //测试 10 秒钟后返回市电供电
+	// _, err = s.Write([]byte("T\r"))
+	// if err != nil {
+	// 	log.Errorf("send err: %s", err.Error())
+	// }
+
+exit:
 	for {
-		n, err = s.Read(buf[0:])
-		if err != nil {
-			log.Fatal(err.Error())
+		//clear the slice first
+		result = result[:0]
+
+		select {
+		case <-cleanupDone:
+			// time.Sleep(time.Second * 4)
+			break exit
+		default:
+			time.Sleep(time.Second * 10)
+			log.Info("try send query command ...")
+			n, err := s.Write([]byte("Q1\r"))
+			if err != nil {
+				log.Errorf("send err: %s", err.Error())
+				continue
+			}
+
+			log.Info("try read info ...")
+			for {
+				n, err = s.Read(buf[0:])
+				if err != nil {
+					if err != io.EOF {
+						log.Errorf("read err: %s", err.Error())
+					}
+					break
+				} else {
+					log.Infof("get read info: %#v", string(buf[:n]))
+				}
+				if string(buf[0:n]) == "\r" {
+					log.Info("hit cr ...")
+					break
+				}
+				result = append(result, buf[:n]...)
+			}
+			log.Infof("done read info: %s", string(result))
 		}
-		//log.Printf("%#v", buf[:n])
-		if string(buf[0:n]) == "\r" {
-			break
+
+		rt := *(**santak.RatingInfo)(unsafe.Pointer(&result))
+		log.Infof("RatingInfo: %#v\n", rt)
+
+		//byte array to struct
+		rs := *(**santak.QueryResult)(unsafe.Pointer(&result))
+
+		//log.Infof("%q", result)
+		log.Infof(" %s\n", " -- HuangYeWuDeng SanTak UPS Monitor -- ")
+		log.Infof("输入侧电压(初级电压): %s v\n", rs.IPVoltage)
+		log.Infof("输入侧故障电压: %s v\n", rs.IPFaultVoltage)
+		log.Infof("输入侧频率: %s Hz\n", rs.IPFreq)
+
+		log.Infof("输出侧电压(次级电压): %s v\n", rs.OPVoltage)
+		log.Infof("输出侧电流负载: %s%%\n", rs.OPCurrentPercent)
+
+		log.Infof("电池电压: %s v\n", rs.BatteryVoltage)
+		log.Infof("温度: %s °C\n", rs.Temperature)
+		log.Infof("buzzerActive: %#v\n", rs.Status.BuzzerActive)
+
+		log.Infof("状态: %#v\n", rs.Status)
+
+		//断电状态：
+		//santak.UPSStatus{UtilityFail:0x31, BatteryLow:0x30, BypassBoostActive:0x30, UPSFailed:0x30, UPSType:0x31, TestActive:0x30, ShutdownActive:0x30, Reserved:0x31}
+		if rs.Status.UtilityFail == '1' {
+			log.Errorf("市电状态: 已断电\n")
+		} else {
+			log.Infof("市电状态: 正常供电\n")
 		}
-		//log.Printf("%q", buf[:n])
-		result = append(result, buf[:n]...)
-	}
 
-
-	//byte array to struct
-	rs := *(**santak.QueryResult)(unsafe.Pointer(&result))
-
-	//log.Infof("%q", result)
-	log.Infof(" %s\n", " -- HuangYeWuDeng SanTak UPS Monitor -- ")
-	log.Infof("输入侧电压(初级电压): %s v\n", rs.IPVoltage)
-	log.Infof("输入侧故障电压: %s v\n", rs.IPFaultVoltage)
-	log.Infof("输出侧电压(次级电压): %s v\n", rs.OPVoltage)
-	log.Infof("输出侧负载: %s%%\n", rs.OPLoad)
-	log.Infof("输入侧频率: %s Hz\n", rs.IPFreq)
-	log.Infof("电池电压: %s v\n", rs.BatteryVoltage)
-	log.Infof("温度: %s °C\n", rs.Temperature)
-	//log.Printf("状态: %#v\n", rs.Status)
-	if rs.Status.UtilityFail == '1' {
-		log.Errorf("市电状态: 已断电\n")
-	} else {
-		log.Infof("市电状态: 正常供电\n")
+		if rs.Status.BatteryLow == '1' {
+			log.Errorf("电池电压: 低\n")
+		} else {
+			log.Infof("电池电压: 正常\n")
+		}
 	}
 }
 

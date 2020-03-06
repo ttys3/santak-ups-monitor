@@ -10,3 +10,5 @@ require (
 )
 
 replace github.com/apex/log v1.1.0 => ../apex-log
+
+go 1.13
