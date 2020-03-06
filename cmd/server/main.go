@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -36,6 +37,8 @@ func main() {
 	result := make([]byte, 0)
 	buf := make([]byte, 128)
 
+	var wg sync.WaitGroup
+
 	// After setting everything up!
 	// Wait for a SIGINT (perhaps triggered by user with CTRL-C)
 	// Run cleanup when signal is received
@@ -45,6 +48,9 @@ func main() {
 	go func() {
 		<-signalChan
 		log.Info("Received an interrupt, stopping services...")
+		log.Info("waiting exit ...")
+		wg.Wait()
+		log.Info("exited")
 		s.Flush()
 		s.Close()
 		close(cleanupDone)
@@ -64,14 +70,17 @@ exit:
 
 		select {
 		case <-cleanupDone:
-			// time.Sleep(time.Second * 4)
 			break exit
 		default:
-			time.Sleep(time.Second * 10)
+			wg.Add(1)
+			log.Info("sleep 3 start ...")
+			time.Sleep(time.Second * 3)
+			log.Info("sleep 3 end ...")
 			log.Info("try send query command ...")
 			n, err := s.Write([]byte("Q1\r"))
 			if err != nil {
 				log.Errorf("send err: %s", err.Error())
+				wg.Done()
 				continue
 			}
 
@@ -84,7 +93,7 @@ exit:
 					}
 					break
 				} else {
-					log.Infof("get read info: %#v", string(buf[:n]))
+					log.Infof("read data: %#v", string(buf[:n]))
 				}
 				if string(buf[0:n]) == "\r" {
 					log.Info("hit cr ...")
@@ -92,6 +101,7 @@ exit:
 				}
 				result = append(result, buf[:n]...)
 			}
+			wg.Done()
 			log.Infof("done read info: %s", string(result))
 		}
 
@@ -129,7 +139,7 @@ exit:
 		} else {
 			log.Infof("电池电压: 正常\n")
 		}
-	}
+	} //end for
 }
 
 func initLog() {
