@@ -25,7 +25,7 @@ func main() {
 	if runtime.GOOS == "windows" {
 		ttyDev = "COM4"
 	}
-	c := &serial.Config{Name: ttyDev, Baud: 2400, ReadTimeout: time.Second * 3}
+	c := &serial.Config{Name: ttyDev, Baud: 2400, ReadTimeout: time.Millisecond * 500}
 
 	log.Infof("try open port: %s\n", ttyDev)
 
@@ -105,8 +105,8 @@ exit:
 			log.Infof("done read info: %s", string(result))
 		}
 
-		rt := *(**santak.RatingInfo)(unsafe.Pointer(&result))
-		log.Infof("RatingInfo: %#v\n", rt)
+		// rt := *(**santak.RatingInfo)(unsafe.Pointer(&result))
+		// log.Infof("RatingInfo: %#v\n", rt)
 
 		//byte array to struct
 		rs := *(**santak.QueryResult)(unsafe.Pointer(&result))
