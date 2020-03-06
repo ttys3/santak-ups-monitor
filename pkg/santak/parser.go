@@ -18,12 +18,13 @@ const EndByteChar = '\r'
 type UPSStatus struct {
 	UtilityFail       byte //市电电压异常, utility power 市电，1 fail 表示 UPS 市电断了，电池供电
 	BatteryLow        byte //电池低电压, 1 low
-	BypassBoostActive byte //Bypass 或 Buck Active
-	UPSFailed         byte //UPS 故障, 1 failed
-	UPSType           byte //表示 UPS 为后备式(0 表示在线式), 1 standby 0 online
-	TestActive        byte //表示 测试中, 1 test in progress
-	ShutdownActive    byte //表示 关机有效, 1 shutdown active
-	BuzzerActive      byte //表示 蜂鸣器开
+	BypassBoostActive byte //Bypass 或 Buck Active (1 : AVR 0:NORMAL)
+	//当电网电压变化时，通过自动调整实现输出电压稳定并供给负载使用，称为AVR(AutomaticVoltageRegulation)
+	UPSFailed      byte //UPS 故障, 1 failed
+	UPSType        byte //表示 UPS 为后备式(0 表示在线式), 1 standby 0 online
+	TestActive     byte //表示 测试中, 1 test in progress
+	ShutdownActive byte //表示 关机有效, 1 shutdown active
+	BuzzerActive   byte //表示 蜂鸣器开
 }
 
 // UPS 状态查询请求 Q1
