@@ -56,6 +56,7 @@ func main() {
 		close(cleanupDone)
 	}()
 
+	showRatedInfo(s)
 	// log.Info("try send test command ...")
 	// //测试 10 秒钟后返回市电供电
 	// _, err = s.Write([]byte("T\r"))
@@ -148,4 +149,37 @@ func initLog() {
 	//only print to console when debug
 	logHandlers = append(logHandlers, cli.New(os.Stdout))
 	log.SetHandler(multi.New(logHandlers...))
+}
+
+func showRatedInfo(s *serial.Port) {
+	log.Info("showRatedInfo begin ...")
+	//测试 10 秒钟后返回市电供电
+	_, err := s.Write([]byte("F\r"))
+	if err != nil {
+		log.Errorf("showRatedInfo send err: %s", err.Error())
+	}
+	log.Info("showRatedInfo try read info ...")
+	result := make([]byte, 0)
+	buf := make([]byte, 128)
+	for {
+		n, err := s.Read(buf[0:])
+		if err != nil {
+			if err != io.EOF {
+				log.Errorf("read err: %s", err.Error())
+			}
+			break
+		} else {
+			// log.Infof("read data: %#v", string(buf[:n]))
+		}
+		if string(buf[0:n]) == "\r" {
+			log.Info("hit cr ...")
+			break
+		}
+		result = append(result, buf[:n]...)
+	}
+	rt := *(**santak.RatingInfo)(unsafe.Pointer(&result))
+	log.Infof("BatteryVoltage: %s\n", rt.BatteryVoltage)
+	log.Infof("VoltageRating: %s\n", rt.VoltageRating)
+	log.Infof("CurrentRating: %s\n", rt.CurrentRating)
+	log.Infof("FrequencyRating: %s\n", rt.FrequencyRating)
 }
