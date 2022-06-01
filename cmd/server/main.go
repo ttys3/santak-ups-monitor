@@ -9,11 +9,11 @@ import (
 	"time"
 	"unsafe"
 
-	"bitbucket.org/8ox86/santak-monitor/pkg/santak"
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/cli"
 	"github.com/apex/log/handlers/multi"
 	"github.com/tarm/serial"
+	"github.com/ttys3/santak-ups-monitor/pkg/santak"
 )
 
 func init() {
@@ -66,7 +66,7 @@ func main() {
 
 exit:
 	for {
-		//clear the slice first
+		// clear the slice first
 		result = result[:0]
 
 		select {
@@ -109,10 +109,10 @@ exit:
 		// rt := *(**santak.RatingInfo)(unsafe.Pointer(&result))
 		// log.Infof("RatingInfo: %#v\n", rt)
 
-		//byte array to struct
+		// byte array to struct
 		rs := *(**santak.QueryResult)(unsafe.Pointer(&result))
 
-		//log.Infof("%q", result)
+		// log.Infof("%q", result)
 		log.Infof(" %s\n", " -- HuangYeWuDeng SanTak UPS Monitor -- ")
 		log.Infof("输入侧电压(初级电压): %s v\n", rs.IPVoltage)
 		log.Infof("输入侧故障电压: %s v\n", rs.IPFaultVoltage)
@@ -127,8 +127,8 @@ exit:
 
 		log.Infof("状态: %#v\n", rs.Status)
 
-		//断电状态：
-		//santak.UPSStatus{UtilityFail:0x31, BatteryLow:0x30, BypassBoostActive:0x30, UPSFailed:0x30, UPSType:0x31, TestActive:0x30, ShutdownActive:0x30, Reserved:0x31}
+		// 断电状态：
+		// santak.UPSStatus{UtilityFail:0x31, BatteryLow:0x30, BypassBoostActive:0x30, UPSFailed:0x30, UPSType:0x31, TestActive:0x30, ShutdownActive:0x30, Reserved:0x31}
 		if rs.Status.UtilityFail == '1' {
 			log.Errorf("市电状态: 已断电\n")
 		} else {
@@ -140,20 +140,20 @@ exit:
 		} else {
 			log.Infof("电池电压: 正常\n")
 		}
-	} //end for
+	} // end for
 }
 
 func initLog() {
-	//default handler: text
+	// default handler: text
 	var logHandlers []log.Handler
-	//only print to console when debug
+	// only print to console when debug
 	logHandlers = append(logHandlers, cli.New(os.Stdout))
 	log.SetHandler(multi.New(logHandlers...))
 }
 
 func showRatedInfo(s *serial.Port) {
 	log.Info("showRatedInfo begin ...")
-	//测试 10 秒钟后返回市电供电
+	// 测试 10 秒钟后返回市电供电
 	_, err := s.Write([]byte("F\r"))
 	if err != nil {
 		log.Errorf("showRatedInfo send err: %s", err.Error())
